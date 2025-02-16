@@ -39,7 +39,7 @@ pipeline {
                 script {
                     if (params.PLAN_TERRAFORM) {
                         sh 'echo "=================Terraform Plan=================="'
-                        sh 'terraform plan -out=tfplan'
+                        sh 'terraform plan -out=tfplan -state=$TERRAFORM_STATE_FILE'
                     }
                 }
             }
@@ -49,8 +49,10 @@ pipeline {
             steps {
                 script {
                     if (params.APPLY_TERRAFORM) {
+                        sh 'echo "=================Terraform Plan=================="'
+                        sh 'terraform plan -out=tfplan -state=$TERRAFORM_STATE_FILE'
                         sh 'echo "=================Terraform Apply=================="'
-                        sh 'terraform apply -auto-approve'
+                        sh 'terraform apply -auto-approve -state=$TERRAFORM_STATE_FILE'
                     }
                 }
             }
@@ -60,8 +62,9 @@ pipeline {
             steps {
                 script {
                     if (params.DESTROY_TERRAFORM) {
-                        sh 'echo "=================Terraform Apply=================="'
-                        sh 'terraform destroy -auto-approve'
+                        sh 'terraform plan -destroy'
+                        sh 'echo "=================Terraform Destroy=================="'
+                        sh 'terraform destroy -auto-approve -state=$TERRAFORM_STATE_FILE'
                     }
                 }
             }
@@ -76,11 +79,11 @@ pipeline {
 
     post {
         success {
-            echo 'Terraform Apply/Destroy completed successfully!'
+            echo 'Terraform Operations completed successfully!'
         }
 
         failure {
-            echo 'Terraform Apply failed!'
+            echo 'Terraform Operation failed!'
         }
     }
-} 
+}

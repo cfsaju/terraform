@@ -1,25 +1,31 @@
 provider "aws" {
-  region = "us-east-1"
+  region                   = "us-east-1"
   shared_credentials_files = ["/Users/sajufrancis/.aws/credentials"]
 }
 
-# Merge function to update/add  the tags of the user
-data "aws_iam_user" "test_user1" {
-  user_name = "test_user1"
-
-}
 
 resource "aws_iam_user" "test_user1" {
-name = "test_user1"
+  name = "test_user1"
 
-tags = merge(
+  /* tags = merge(
   
     data.aws_iam_user.test_user1.tags,
       {environment = "dev",
       purpose     = "Boat Testing" }
     
 )
+*/
+
 }
+
+/*
+# Merge function to update/add  the tags of the user
+ data "aws_iam_user" "test_user1" {
+  user_name = "test_user1"
+
+}
+*/
+
 
 /*
 resource "null_resource" "log_start" {
