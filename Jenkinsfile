@@ -62,7 +62,7 @@ pipeline {
             steps {
                 script {
                     if (params.DESTROY_TERRAFORM) {
-                        sh 'terraform plan -destroy'
+                        sh 'terraform plan -destroy -state=$TERRAFORM_STATE_FILE'
                         sh 'echo "=================Terraform Destroy=================="'
                         sh 'terraform destroy -auto-approve -state=$TERRAFORM_STATE_FILE'
                     }
