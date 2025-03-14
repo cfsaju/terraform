@@ -1,199 +1,96 @@
-provider "aws" {
-  region                   = "us-east-1"
-  shared_credentials_files = ["/Users/sajufrancis/.aws/credentials"]
+# Creating the VPC with one public subnet and one private subnet
+
+locals {
+  environment = "dev"
 }
 
-
-resource "aws_iam_user" "test_user1" {
-  name = "test_user1"
-
-  /* tags = merge(
-  
-    data.aws_iam_user.test_user1.tags,
-      {environment = "dev",
-      purpose     = "Boat Testing" }
-    
-)
-*/
+module "vpc" {
+  source              = "./modules/vpc"
+  vpc_name            = "myVPC"
+  cidr_block          = "10.0.0.0/16"
+  public_subnet_cidr  = ["10.0.1.0/27", "10.0.1.64/27"] # Two /27 subnets
+  private_subnet_cidr = ["10.0.2.0/28"]
+  availability_zone   = ["us-east-1a", "us-east-1b"]
 
 }
 
-/*
-# Merge function to update/add  the tags of the user
- data "aws_iam_user" "test_user1" {
-  user_name = "test_user1"
+# Creating the 3 EC2 instances 2 - Apache Servers ,  1 Aurora DB EC2 in private subnet
 
-}
-*/
+module "ec2" {
 
+  depends_on  = [module.vpc]
+  source      = "./modules/ec2"
+  environment = local.environment
+  ssh_key     = "mac-key"
+  no_inst     = 2
+  subnet_id   = module.vpc.public_subnet_id
+  vpc_id      = module.vpc.vpc_id
 
-/*
-resource "null_resource" "log_start" {
-  provisioner "local-exec" {
-    command = <<EOT
-        echo "START: $(date)" > terraform_execution.log
-        echo "Deploying: ${var.deployment_version}"
-        EOT
-  }
-
-  triggers = {
-    version = var.deployment_version
-  }
-}
-
-
-resource "aws_iam_user" "listusers" {
-  for_each = toset(var.list_users)
-  name     = each.value
-}
-
-resource "aws_iam_user" "countusers" {
-  count = 5
-  name  = "user-${count.index + 1}"
-
-  tags = {
-    Specialuser = count.index == 1 ? "Super User" : "Operator"
-
-  }
-
-} 
-
-resource "aws_iam_user" "mapusers" {
-  for_each = var.map_users
-  name     = each.value
-
-  tags = {
-    tag_name = lookup(var.map_users, each.key, "Test User")
-  }
-
-}
-
-resource "aws_vpc" "myvpc" {
-  cidr_block = lookup(var.vpc_cidr, "test", "10.0.0.0/24")
-
-}
-
-# Example of using dynamic Block
-
-resource "aws_security_group" "public_sg" {
-  name        = "dynamic-sg"
-  description = "Example security group"
-
-  dynamic "ingress" {
-    for_each = var.ingress_rules
-    content {
-      from_port   = ingress.value.from_port
-      to_port     = ingress.value.to_port
-      protocol    = ingress.value.protocol
-      cidr_blocks = ingress.value.cidr_blocks
-    }
-  }
-
-}
-
-/*
-output "user_names" {
-
-  value = [for user in aws_iam_user.countusers : user.name]
-
-}
-
-# EC2 , SG, creation block
-/*
-resource "aws_key_pair" "mackey" {
-  public_key = file("~/.ssh/id_rsa.pub")
-
-}
-
-resource "aws_instance" "webserver" {
-  ami                    = "ami-04b4f1a9cf54c11d0"
-  instance_type          = "t2.micro"
-  vpc_security_group_ids = [aws_security_group.public_sg.id]
-  key_name = aws_key_pair.mackey.key_name
-  # vpc_security_group_ids = concat([aws_security_group.public_sg.id], [])
-}
-
-resource "aws_security_group" "public_sg" {
-  name        = "public_sg"
-  description = "Allow port 80 and 22 for web and ssh access"
-
-
-  ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = -1
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  tags = {
-    Name = "Public Security Group"
-  }
-}
-
-# Example of using Dependency
-
-resource "null_resource" "base_cmd" {
-  depends_on = [ aws_instance.webserver ]
-
-# Example of using remote provisioner
-
-  provisioner "remote-exec" {
-
-    inline = [
-      "sudo touch /tmp/test1.log"
-    ]
-
-    connection {
-      host        = aws_instance.webserver.public_ip
-      private_key = file("~/.ssh/id_rsa")
-      user        = "ubuntu"
-      type        = "ssh"
-
-    }
-
-  }
-
+  user_data = <<-EOF
+   #!/bin/bash
+   set -ex  # Enable debugging and exit on error
+   apt update -y
+   apt install -y apache2
+   INSTANCE_IP=$(curl -s http://169.254.169.254/latest/meta-data/local-ipv4)
+   INSTANCE_HOSTNAME=$(curl -s http://169.254.169.254/latest/meta-data/hostname)
+   
+   systemctl start apache2
+   systemctl enable apache2
+   
+   cat <<EOT > /var/www/html/index.html
+   <html>
+   <head><title>EC2 Instance Info</title></head>
+   <body>
+   <h1>Welcome to Saju's Terraform Instances</h1>
+   <p><strong>Private IP Address:</strong> $INSTANCE_IP</p>
+   <p><strong>Hostname:</strong> $INSTANCE_HOSTNAME</p>
+   </body>
+   </html>
+   EOT
+   EOF
 }
 
 output "public_ip" {
-  value = aws_instance.webserver.public_ip
+  value = module.ec2.public_ip
 }
 
+# Create  Target group
 
+module "loadbalancer" {
+  source          = "./modules/loadbalancer"
+  tgtgrp_name     = "web-tgt-grp1"
+  tgtgrp_port     = "80"
+  tgtgrp_protocol = "HTTP"
+  vpc_id          = module.vpc.vpc_id
 
-# Example of using null resource and local provisioner 
-
-resource "null_resource" "log_stop" {
-  provisioner "local-exec" {
-    command = <<EOT
-        echo "START: $(date)" > terraform_execution.log
-        EOT
-  }
-
-}
-# Example of using locals
-
-locals {
-  app_name  = "web-app"
-  env       = "dev"
-  full_name = "${local.app_name}-${local.env}"
-}
-
-resource "aws_s3_bucket" "test_bucket" {
-  bucket = local.full_name
+  # To create the Application Load Balancer
+  lb_name    = "web-lb1"
+  lb_subnets = module.vpc.public_subnet_id
+  
 
 }
-*/
+
+# Attach the instances in the target group
+resource "aws_lb_target_group_attachment" "lb_tgt_grp1_instances" {
+  count            = length(module.ec2.instance_id)
+  target_group_arn = module.loadbalancer.tgt_grp_arn
+  target_id        = module.ec2.instance_id[count.index]
+  port             = 80
+
+}
+
+# Create the listener and include the target groups
+
+
+
+# Create Route53 and Cloud Front
+
+
+
+
+
+
+
+
+
+
