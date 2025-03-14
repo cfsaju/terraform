@@ -81,7 +81,23 @@ resource "aws_lb_target_group_attachment" "lb_tgt_grp1_instances" {
 
 # Create the listener and include the target groups
 
+resource "aws_lb_listener" "front_end" {
+  load_balancer_arn = module.loadbalancer.lb_arn
+  port = 80
+  protocol = "HTTP"
 
+  default_action {
+    type = "forward"
+    target_group_arn = module.loadbalancer.tgt_grp_arn
+  }
+
+}
+
+output "lb_dns_name" {
+
+  value = module.loadbalancer.lb_dns_name
+  
+}
 
 # Create Route53 and Cloud Front
 
