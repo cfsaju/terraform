@@ -15,7 +15,7 @@ module "vpc" {
 }
 
 # Creating the 3 EC2 instances 2 - Apache Servers ,  1 Aurora DB EC2 in private subnet
-
+/* 
 module "ec2" {
 
   depends_on  = [module.vpc]
@@ -99,7 +99,107 @@ output "lb_dns_name" {
   
 }
 
-# Create Route53 and Cloud Front
+# Create the AWS launch Template
+
+resource "aws_launch_template" "webserver" {
+
+  name = "webserver_template"
+  image_id = "ami-04b4f1a9cf54c11d0"
+  instance_type = "t2.micro"
+  key_name = "mac-key"
+
+  network_interfaces {
+    associate_carrier_ip_address = true
+    security_groups = module.ec2.
+  }
+  
+}
+*/
+
+/*
+resource "aws_security_group" "web_sg" {
+
+  
+  name   = "web-sg1"
+  vpc_id = module.vpc.vpc_id
+  
+  
+
+  /*  
+  ingress {
+
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+*/
+# The below dynamic directly calling variable using ingress
+/*
+  dynamic "ingress" {
+    for_each = var.ingress_rules
+    content {
+      description = ingress.value.description
+      from_port   = ingress.value.from_port
+      to_port     = ingress.value.to_port
+      protocol    = ingress.value.protocol
+      cidr_blocks = ingress.value.cidr_blocks
+    }
+
+  }
+
+
+}
+  */
+
+module "deployment_version_grp" {
+  source  = "./modules/secgrp"
+  sg_name = "dv-sg"
+  vpc_id  = module.vpc.vpc_id
+
+  ingress_rules = [
+    {
+      description = "Allow web access"
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+
+    },
+    {
+      description = "Allow HTTPS"
+      from_port = 443
+      to_port = 443
+      protocol    = "tcp"
+      cidr_blocks = ["0.0.0.0/0"]
+    }
+  ]
+
+
+
+}
+
 
 
 
